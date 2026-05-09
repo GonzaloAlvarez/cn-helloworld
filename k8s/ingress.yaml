@@ -1,0 +1,23 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: helloworld
+  annotations:
+    # k8s_gateway also reads spec.rules[].host and creates A records pointing
+    # at the ingress LoadBalancer. The annotation here is a redundant explicit
+    # hint for tooling that doesn't read .spec.rules.
+    coredns.io/hostname: hello.k8s.lan
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: hello.k8s.lan
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: helloworld
+                port:
+                  number: 80

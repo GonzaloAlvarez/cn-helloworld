@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld
+spec:
+  # 1 replica — RWO PVC means only one pod can mount the Longhorn volume at a
+  # time. Storage redundancy (3 replicas) is at the Longhorn block layer, not
+  # the pod layer. Bump to RWX + 2 if you need active-active.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helloworld
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: helloworld
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: helloworld
+                topologyKey: kubernetes.io/hostname
+      # Don't tolerate control-plane taint — Longhorn CSI driver isn't deployed
+      # on control-plane nodes (rpid0/1/2), so PVC attach fails there.
+      containers:
+        - name: echo
+          image: ealen/echo-server:0.9.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: PORT
+              value: "80"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: helloworld-data
